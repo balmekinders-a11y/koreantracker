@@ -1054,7 +1054,6 @@ function wireForms(showSection) {
 
 function wirePronunciationPractice() {
   const textInput = document.getElementById("pronunciation-text");
-  const voiceSelect = document.getElementById("pronunciation-voice");
   const micSelect = document.getElementById("pronunciation-mic");
   const listenBtn = document.getElementById("pronunciation-listen");
   const recordBtn = document.getElementById("pronunciation-record");
@@ -1067,7 +1066,6 @@ function wirePronunciationPractice() {
 
   if (
     !(textInput instanceof HTMLTextAreaElement) ||
-    !(voiceSelect instanceof HTMLSelectElement) ||
     !(micSelect instanceof HTMLSelectElement) ||
     !(listenBtn instanceof HTMLButtonElement) ||
     !(recordBtn instanceof HTMLButtonElement) ||
@@ -1190,29 +1188,11 @@ function wirePronunciationPractice() {
     return recognition;
   }
 
-  function loadVoices() {
+  function getGoogleKoKrVoice() {
     const voices = window.speechSynthesis?.getVoices?.() || [];
-    voiceSelect.innerHTML = "";
-    const koVoices = voices.filter((v) => /^ko(?:-|$)/i.test(v.lang));
-    const selected = koVoices.length ? koVoices : voices;
-    if (!selected.length) {
-      voiceSelect.innerHTML = `<option value="">Default browser voice</option>`;
-      return;
-    }
-    const maleHints = /(male|man|남|아저씨|hyun|joon|min|injoon|gook|jin|준|훈|석)/i;
-    const sorted = [...selected].sort((a, b) => {
-      const aMale = maleHints.test(a.name) ? 1 : 0;
-      const bMale = maleHints.test(b.name) ? 1 : 0;
-      return bMale - aMale;
-    });
-    sorted.forEach((voice, idx) => {
-      const opt = document.createElement("option");
-      opt.value = voice.voiceURI;
-      const maleTag = maleHints.test(voice.name) ? " - likely male" : "";
-      opt.textContent = `${voice.name} (${voice.lang})${maleTag}`;
-      if (idx === 0) opt.selected = true;
-      voiceSelect.appendChild(opt);
-    });
+    return (
+      voices.find((v) => /google/i.test(v.name) && /^ko-kr$/i.test(v.lang)) || null
+    );
   }
 
   async function loadMicrophones() {
@@ -1246,12 +1226,14 @@ function wirePronunciationPractice() {
       setStatus("Text-to-speech is not available in this browser.");
       return;
     }
+    const googleKoKrVoice = getGoogleKoKrVoice();
+    if (!googleKoKrVoice) {
+      setStatus("Google ko-KR voice is not available in this browser.");
+      return;
+    }
     const utt = new SpeechSynthesisUtterance(phrase);
-    const voices = window.speechSynthesis.getVoices();
-    const selectedUri = voiceSelect.value;
-    const selectedVoice = voices.find((v) => v.voiceURI === selectedUri);
-    if (selectedVoice) utt.voice = selectedVoice;
-    utt.lang = selectedVoice?.lang || "ko-KR";
+    utt.voice = googleKoKrVoice;
+    utt.lang = "ko-KR";
     utt.rate = 0.92;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utt);
@@ -1335,11 +1317,11 @@ function wirePronunciationPractice() {
   micSelect.addEventListener("change", () => {
     permissionStreamDeviceId = "";
   });
-  if (window.speechSynthesis?.addEventListener) {
-    window.speechSynthesis.addEventListener("voiceschanged", loadVoices);
-  }
 
-  loadVoices();
+  // Warm voices list for browsers that load voices asynchronously.
+  if (window.speechSynthesis?.getVoices) {
+    window.speechSynthesis.getVoices();
+  }
   loadMicrophones();
   // Warm up recognition object once so later records can reuse it.
   if (!recognitionInitialized) ensureRecognition();
