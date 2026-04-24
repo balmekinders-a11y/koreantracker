@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Korean Study Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">한</span>
+          <div class="brand-text">
+            <h1>Korean Study Tracker</h1>
+            <p class="tagline">Local progress · vocabulary · grammar · PrePly homework</p>
+          </div>
+        </div>
+      </header>
+
+      <nav class="nav" aria-label="Main sections">
+        <button type="button" class="nav-btn is-active" data-section="dashboard">
+          Dashboard
+        </button>
+        <button type="button" class="nav-btn" data-section="vocabulary">Vocabulary</button>
+        <button type="button" class="nav-btn" data-section="grammar">Grammar</button>
+        <button type="button" class="nav-btn" data-section="pronunciation">
+          Pronunciation practice
+        </button>
+        <button type="button" class="nav-btn" data-section="preply">PrePly lessons</button>
+      </nav>
+
+      <main class="main">
+        <section id="panel-dashboard" class="panel is-visible" aria-labelledby="dashboard-heading">
+          <h2 id="dashboard-heading">Dashboard</h2>
+          <p class="lead">
+            Track vocabulary, grammar topics, and PrePly homework with screenshots and files — everything stays in this browser on your machine.
+          </p>
+          <div class="cards">
+            <article class="card stat-card">
+              <h3>Vocabulary entries</h3>
+              <p class="stat" id="stat-words">0</p>
+            </article>
+            <article class="card stat-card">
+              <h3>Grammar topics</h3>
+              <p class="stat" id="stat-grammar">0</p>
+            </article>
+            <article class="card stat-card">
+              <h3>PrePly lessons logged</h3>
+              <p class="stat" id="stat-preply">0</p>
+            </article>
+            <article class="card stat-card wotd-card">
+              <h3>WORD OF THE DAY</h3>
+              <div id="word-of-day-content" class="wotd-content">
+                <p class="grammar-meta">Loading...</p>
+              </div>
+            </article>
+            <article class="card stat-card tile-card">
+              <h3>Practice tile</h3>
+              <p class="tile-title">Pronunciation Practice</p>
+              <p class="grammar-meta">Listen, record, and compare your pronunciation.</p>
+              <button type="button" class="btn secondary tile-btn" data-goto="pronunciation">
+                Open section
+              </button>
+            </article>
+          </div>
+          <article class="card form-card data-transfer-card">
+            <h3>Data transfer</h3>
+            <p class="grammar-meta">
+              Export all local data (vocabulary, grammar, and PrePly lessons with attachments) to a JSON backup file, then import it in another origin.
+            </p>
+            <div class="pronunciation-controls">
+              <button type="button" class="btn secondary" id="data-export-btn">Export all data</button>
+              <input type="file" id="data-import-input" accept=".json,application/json" class="visually-hidden" />
+              <button type="button" class="btn secondary" id="data-import-btn">Import all data</button>
+            </div>
+            <p id="data-transfer-status" class="grammar-meta">No import/export run yet.</p>
+          </article>
+        </section>
+
+        <section id="panel-vocabulary" class="panel" hidden aria-labelledby="vocab-heading">
+          <h2 id="vocab-heading">Vocabulary practice</h2>
+          <p class="lead">
+            Build your word list, drill with flashcards (Korean ↔ English), and track progress. Words with higher review priority show up more often until you answer cleanly.
+          </p>
+
+          <div id="flashcard-panel" class="card form-card flashcard-panel">
+            <h3>Flashcard practice</h3>
+            <p class="flash-help">
+              Type the translation. Each fully correct answer scores one point on that word. After
+              <strong>10</strong> correct answers (either direction combined), the word is marked as practiced.
+              One spelling mistake or a wrong answer raises its review priority so it appears more often.
+            </p>
+            <div class="flash-mode-row" role="group" aria-label="Flashcard direction">
+              <button type="button" class="btn secondary flash-mode-btn is-active" data-flash-mode="ko-en">
+                Korean → English
+              </button>
+              <button type="button" class="btn secondary flash-mode-btn" data-flash-mode="en-ko">
+                English → Korean
+              </button>
+            </div>
+            <div id="flash-empty" class="empty flash-empty">
+              Add vocabulary entries below to practice with flashcards.
+            </div>
+            <div id="flash-session" class="flash-session" hidden>
+              <div class="flash-toolbar">
+                <button type="button" class="btn primary" id="flash-draw">
+                  Draw a card
+                </button>
+              </div>
+              <div id="flash-card-body" class="flash-card-body" hidden>
+                <div class="flash-prompt">
+                  <span class="flash-label" id="flash-prompt-label">Translate:</span>
+                  <div class="flash-term-row">
+                    <p class="flash-term" id="flash-term" lang="ko"></p>
+                    <a
+                      id="flash-translate-link"
+                      class="word-translate-link flash-translate-link"
+                      href="https://translate.google.com/?sl=ko&amp;tl=en"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      hidden
+                      title="Opens Google Translate — use the speaker icon for Korean audio"
+                      >Pronounce</a
+                    >
+                  </div>
+                </div>
+                <form id="flash-answer-form" class="flash-answer-row">
+                  <label class="flash-input-wrap">
+                    <span class="visually-hidden">Your answer</span>
+                    <input
+                      type="text"
+                      id="flash-input"
+                      class="flash-input"
+                      autocomplete="off"
+                      spellcheck="true"
+                      placeholder="Your answer"
+                    />
+                  </label>
+                  <button type="submit" class="btn primary">Check</button>
+                </form>
+                <div id="flash-feedback" class="flash-feedback" role="status" aria-live="polite"></div>
+                <div class="flash-after" id="flash-after" hidden>
+                  <button type="button" class="btn secondary" id="flash-next">Next card</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <form id="form-word" class="card form-card">
+            <h3>Add word</h3>
+            <div class="form-grid">
+              <label class="field">
+                <span>Korean</span>
+                <input
+                  name="korean"
+                  id="word-korean-input"
+                  type="text"
+                  required
+                  autocomplete="off"
+                  lang="ko-KR"
+                  class="ime-korean"
+                  inputmode="text"
+                  placeholder="예: 안녕하세요"
+                />
+              </label>
+              <label class="field">
+                <span>Meaning / reading</span>
+                <input
+                  name="meaning"
+                  id="word-meaning-input"
+                  type="text"
+                  required
+                  lang="en"
+                  class="ime-latin"
+                  inputmode="text"
+                  placeholder="e.g. Hello (formal)"
+                />
+              </label>
+              <label class="field span-2">
+                <span>Notes (optional)</span>
+                <input name="notes" type="text" placeholder="Context, collocations…" />
+              </label>
+            </div>
+            <button type="submit" class="btn primary">Add to list</button>
+          </form>
+
+          <div class="toolbar toolbar--vocab">
+            <input
+              type="search"
+              id="filter-words"
+              class="search"
+              placeholder="Filter by Korean or meaning…"
+              aria-label="Filter vocabulary"
+            />
+            <label class="sort-field" for="sort-words">
+              <span>Sort</span>
+              <select id="sort-words" class="sort-select" aria-label="Sort vocabulary list">
+                <option value="added">Added order</option>
+                <option value="korean-alpha">Korean alphabetical</option>
+              </select>
+            </label>
+          </div>
+
+          <div id="word-list" class="list"></div>
+        </section>
+
+        <section id="panel-grammar" class="panel" hidden aria-labelledby="grammar-heading">
+          <h2 id="grammar-heading">Grammar practice</h2>
+          <p class="lead">Track topics you are studying and tick them off as you get comfortable.</p>
+
+          <form id="form-grammar" class="card form-card">
+            <h3>Add grammar topic</h3>
+            <div class="form-grid">
+              <label class="field span-2">
+                <span>Topic</span>
+                <input name="topic" type="text" required placeholder="e.g. -아/어 보다 (try doing)" />
+              </label>
+              <label class="field span-2">
+                <span>Notes (optional)</span>
+                <input name="grammarNotes" type="text" placeholder="Textbook page, examples…" />
+              </label>
+            </div>
+            <button type="submit" class="btn primary">Add topic</button>
+          </form>
+
+          <div id="grammar-list" class="list"></div>
+        </section>
+
+        <section id="panel-pronunciation" class="panel" hidden aria-labelledby="pronunciation-heading">
+          <h2 id="pronunciation-heading">Pronunciation practice</h2>
+          <p class="lead">
+            Listen to a model pronunciation, then record your voice from your webcam or headset microphone and compare with a transcript-based score.
+          </p>
+
+          <form id="form-pronunciation" class="card form-card">
+            <h3>Practice phrase</h3>
+            <div class="form-grid">
+              <label class="field span-2">
+                <span>Korean word or sentence</span>
+                <textarea
+                  id="pronunciation-text"
+                  rows="2"
+                  placeholder="예: 오늘 날씨가 정말 좋아요"
+                  required
+                  lang="ko-KR"
+                  class="ime-korean"
+                ></textarea>
+              </label>
+              <label class="field">
+                <span>Voice</span>
+                <select id="pronunciation-voice"></select>
+                <small id="pronunciation-voice-note" class="grammar-meta">
+                  Male voice is prioritized when available on this device.
+                </small>
+              </label>
+              <label class="field">
+                <span>Microphone</span>
+                <select id="pronunciation-mic"></select>
+              </label>
+            </div>
+            <div class="pronunciation-controls">
+              <button type="button" class="btn secondary" id="pronunciation-listen">Play model pronunciation</button>
+              <button type="button" class="btn secondary" id="pronunciation-record">Record myself</button>
+              <button type="button" class="btn secondary" id="pronunciation-stop" disabled>Stop</button>
+              <button type="button" class="btn secondary" id="pronunciation-clear">Clear recording</button>
+            </div>
+          </form>
+
+          <article class="card">
+            <h3>Comparison result</h3>
+            <p id="pronunciation-status" class="grammar-meta">Enter a phrase, then listen and record.</p>
+            <audio id="pronunciation-playback" controls hidden></audio>
+            <div id="pronunciation-result" class="pronunciation-result"></div>
+            <p class="grammar-meta">
+              Note: this uses browser speech recognition, so the score is an approximation and depends on browser support and connection quality.
+            </p>
+          </article>
+        </section>
+
+        <section id="panel-preply" class="panel" hidden aria-labelledby="preply-heading">
+          <h2 id="preply-heading">PrePly lesson content</h2>
+          <p class="lead">
+            Register each lesson: attach screenshots, PDFs, or other homework files your tutor sent. Files are stored only in this browser (IndexedDB).
+          </p>
+
+          <form id="form-lesson" class="card form-card">
+            <h3>New lesson / homework</h3>
+            <div class="form-grid">
+              <label class="field">
+                <span>Lesson title</span>
+                <input name="title" type="text" required placeholder="e.g. Lesson 12 – past tense" />
+              </label>
+              <label class="field">
+                <span>Lesson date</span>
+                <input name="lessonDate" type="date" required />
+              </label>
+              <label class="field span-2">
+                <span>What we covered</span>
+                <textarea name="summary" rows="3" placeholder="Topics, corrections, themes…"></textarea>
+              </label>
+              <label class="field span-2">
+                <span>Homework notes</span>
+                <textarea name="homeworkNotes" rows="3" placeholder="Tasks assigned, due dates, links…"></textarea>
+              </label>
+              <label class="field span-2">
+                <span>Screenshots & files</span>
+                <div class="file-upload" id="lesson-file-upload">
+                  <input
+                    id="lesson-files"
+                    name="files"
+                    class="file-upload-input"
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf,.doc,.docx,.txt,.zip"
+                  />
+                  <label for="lesson-files" class="btn secondary file-upload-btn">Choose files</label>
+                  <span id="lesson-files-label" class="file-upload-text">No files selected</span>
+                </div>
+              </label>
+            </div>
+            <button type="submit" class="btn primary">Save lesson</button>
+          </form>
+
+          <h3 class="subsection-title">Saved lessons</h3>
+          <div id="lesson-list" class="list lesson-cards"></div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <p>Data stays on your computer. Clear site data in your browser if you need to reset.</p>
+      </footer>
+    </div>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>
