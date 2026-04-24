@@ -29,6 +29,7 @@
           Dashboard
         </button>
         <button type="button" class="nav-btn" data-section="vocabulary">Vocabulary</button>
+        <button type="button" class="nav-btn" data-section="phrases">Phrases</button>
         <button type="button" class="nav-btn" data-section="grammar">Grammar</button>
         <button type="button" class="nav-btn" data-section="pronunciation">
           Pronunciation practice
@@ -211,6 +212,71 @@
           <div id="word-list" class="list"></div>
         </section>
 
+        <section id="panel-phrases" class="panel" hidden aria-labelledby="phrases-heading">
+          <h2 id="phrases-heading">Phrase practice</h2>
+          <p class="lead">
+            Build a phrase list with categories, then filter by category or review all phrases sorted by category.
+          </p>
+
+          <form id="form-phrase" class="card form-card">
+            <h3>Add phrase</h3>
+            <div class="form-grid">
+              <label class="field">
+                <span>Korean phrase</span>
+                <input
+                  name="korean"
+                  id="phrase-korean-input"
+                  type="text"
+                  required
+                  autocomplete="off"
+                  lang="ko-KR"
+                  class="ime-korean"
+                  inputmode="text"
+                  placeholder="예: 잠시만요"
+                />
+              </label>
+              <label class="field">
+                <span>Meaning</span>
+                <input
+                  name="meaning"
+                  id="phrase-meaning-input"
+                  type="text"
+                  required
+                  lang="en"
+                  class="ime-latin"
+                  inputmode="text"
+                  placeholder="e.g. One moment, please"
+                />
+              </label>
+              <label class="field span-2">
+                <span>Category (enter or choose)</span>
+                <input
+                  name="category"
+                  id="phrase-category-input"
+                  type="text"
+                  list="phrase-category-options"
+                  required
+                  autocomplete="off"
+                  placeholder="e.g. restaurant"
+                />
+                <datalist id="phrase-category-options"></datalist>
+              </label>
+            </div>
+            <button type="submit" class="btn primary">Add phrase</button>
+          </form>
+
+          <div class="toolbar toolbar--vocab">
+            <label class="sort-field" for="filter-phrase-category">
+              <span>Category filter</span>
+              <select id="filter-phrase-category" class="sort-select" aria-label="Filter phrase category">
+                <option value="__all__">All categories</option>
+              </select>
+            </label>
+          </div>
+
+          <div id="phrase-list" class="list"></div>
+        </section>
+
         <section id="panel-grammar" class="panel" hidden aria-labelledby="grammar-heading">
           <h2 id="grammar-heading">Grammar practice</h2>
           <p class="lead">Track topics you are studying and tick them off as you get comfortable.</p>
@@ -242,6 +308,18 @@
           <form id="form-pronunciation" class="card form-card">
             <h3>Practice phrase</h3>
             <div class="form-grid">
+              <label class="field">
+                <span>Phrase category</span>
+                <select id="pronunciation-phrase-category">
+                  <option value="__all__">All categories</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Saved phrase</span>
+                <select id="pronunciation-phrase-select">
+                  <option value="">Type your own phrase</option>
+                </select>
+              </label>
               <label class="field span-2">
                 <span>Korean word or sentence</span>
                 <textarea

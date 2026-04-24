@@ -1,6 +1,7 @@
 /** Local Korean study tracker — vocabulary & grammar in localStorage; PrePly lessons + files in IndexedDB */
 
 const STORAGE_WORDS = "kr-tracker-words-v1";
+const STORAGE_PHRASES = "kr-tracker-phrases-v1";
 const STORAGE_GRAMMAR = "kr-tracker-grammar-v1";
 const DB_NAME = "kr-tracker-db";
 const DB_VERSION = 1;
@@ -32,6 +33,8 @@ const WORD_OF_DAY_POOL = [
 let vocabularyEditingId = null;
 /** Vocabulary sort mode ("added" | "korean-alpha") */
 let vocabularySortMode = "added";
+/** @type {null | (() => void)} */
+let refreshPronunciationPhrasePicker = null;
 
 /** @type {Set<string>} */
 const blobUrls = new Set();
@@ -182,6 +185,7 @@ function wireNavigation() {
  * }} Word
  */
 /** @typedef {{ id: string, topic: string, notes: string, done: boolean }} GrammarTopic */
+/** @typedef {{ id: string, korean: string, meaning: string, category: string }} Phrase */
 
 function getWords() {
   return /** @type {Word[]} */ (loadJson(STORAGE_WORDS, []));
@@ -189,6 +193,24 @@ function getWords() {
 
 function saveWords(words) {
   saveJson(STORAGE_WORDS, words);
+}
+
+function getPhrases() {
+  return /** @type {Phrase[]} */ (loadJson(STORAGE_PHRASES, []));
+}
+
+function savePhrases(phrases) {
+  saveJson(STORAGE_PHRASES, phrases);
+}
+
+/** @param {Partial<Phrase> & Record<string, unknown>} p */
+function normalizePhraseEntry(p) {
+  return {
+    id: String(p.id || crypto.randomUUID()),
+    korean: String(p.korean || "").trim(),
+    meaning: String(p.meaning || "").trim(),
+    category: String(p.category || "").trim(),
+  };
 }
 
 /** @param {Partial<Word> & Record<string, unknown>} w */
@@ -605,6 +627,85 @@ function renderGrammar() {
   });
 }
 
+function renderPhrases() {
+  const list = document.getElementById("phrase-list");
+  const filterSelect = document.getElementById("filter-phrase-category");
+  const categoryDatalist = document.getElementById("phrase-category-options");
+  if (!(list instanceof HTMLElement)) return;
+
+  const phrases = getPhrases()
+    .map((p) => normalizePhraseEntry(p))
+    .filter((p) => p.korean && p.meaning && p.category);
+  const categories = [...new Set(phrases.map((p) => p.category))].sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: "base" })
+  );
+
+  if (filterSelect instanceof HTMLSelectElement) {
+    const selectedValue = filterSelect.value || "__all__";
+    const options = [`<option value="__all__">All categories</option>`]
+      .concat(categories.map((c) => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`))
+      .join("");
+    filterSelect.innerHTML = options;
+    filterSelect.value = categories.includes(selectedValue) ? selectedValue : "__all__";
+  }
+
+  if (categoryDatalist instanceof HTMLDataListElement) {
+    categoryDatalist.innerHTML = categories
+      .map((c) => `<option value="${escapeAttr(c)}"></option>`)
+      .join("");
+  }
+
+  if (typeof refreshPronunciationPhrasePicker === "function") {
+    refreshPronunciationPhrasePicker();
+  }
+
+  const selectedCategory =
+    filterSelect instanceof HTMLSelectElement ? filterSelect.value : "__all__";
+  let visible = phrases;
+  if (selectedCategory && selectedCategory !== "__all__") {
+    visible = visible.filter((p) => p.category === selectedCategory);
+  }
+
+  visible.sort((a, b) => {
+    const cat = a.category.localeCompare(b.category, undefined, { sensitivity: "base" });
+    if (cat !== 0) return cat;
+    return a.korean.localeCompare(b.korean, "ko");
+  });
+
+  if (!visible.length) {
+    list.innerHTML = `<div class="empty">No phrases found for this category.</div>`;
+    return;
+  }
+
+  list.innerHTML = visible
+    .map(
+      (p) => `
+      <div class="list-row" data-phrase-id="${escapeAttr(p.id)}">
+        <div class="list-row-main">
+          <div class="word-inline-row">
+            <p class="word-korean">${escapeHtml(p.korean)}</p>
+            <p class="word-meaning">${escapeHtml(p.meaning)}</p>
+          </div>
+          <p class="grammar-meta">Category: ${escapeHtml(p.category)}</p>
+        </div>
+        <div class="row-actions">
+          <button type="button" class="btn ghost" data-remove-phrase="${escapeAttr(p.id)}">Remove</button>
+        </div>
+      </div>`
+    )
+    .join("");
+
+  list.querySelectorAll("[data-remove-phrase]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-remove-phrase");
+      if (!id || !confirm("Remove this phrase from your list?")) return;
+      const next = getPhrases().filter((p) => p.id !== id);
+      savePhrases(next);
+      renderPhrases();
+    });
+  });
+}
+
 function isImageMime(mime) {
   return typeof mime === "string" && mime.startsWith("image/");
 }
@@ -934,8 +1035,12 @@ function wireInputLanguageHints() {
 
   const korean = document.getElementById("word-korean-input");
   const meaning = document.getElementById("word-meaning-input");
+  const phraseKorean = document.getElementById("phrase-korean-input");
+  const phraseMeaning = document.getElementById("phrase-meaning-input");
   bind(korean instanceof HTMLInputElement ? korean : null, "ko");
   bind(meaning instanceof HTMLInputElement ? meaning : null, "en");
+  bind(phraseKorean instanceof HTMLInputElement ? phraseKorean : null, "ko");
+  bind(phraseMeaning instanceof HTMLInputElement ? phraseMeaning : null, "en");
 }
 
 function wireForms(showSection) {
@@ -973,6 +1078,29 @@ function wireForms(showSection) {
         sortWords.value === "korean-alpha" ? "korean-alpha" : "added";
       renderWords(document.getElementById("filter-words").value);
     });
+  }
+
+  document.getElementById("form-phrase").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const form = /** @type {HTMLFormElement} */ (e.target);
+    const fd = new FormData(form);
+    const phrase = normalizePhraseEntry({
+      id: crypto.randomUUID(),
+      korean: String(fd.get("korean") || "").trim(),
+      meaning: String(fd.get("meaning") || "").trim(),
+      category: String(fd.get("category") || "").trim(),
+    });
+    if (!phrase.korean || !phrase.meaning || !phrase.category) return;
+    const all = getPhrases();
+    all.unshift(phrase);
+    savePhrases(all);
+    form.reset();
+    renderPhrases();
+  });
+
+  const phraseCategoryFilter = document.getElementById("filter-phrase-category");
+  if (phraseCategoryFilter instanceof HTMLSelectElement) {
+    phraseCategoryFilter.addEventListener("change", () => renderPhrases());
   }
 
   document.getElementById("form-grammar").addEventListener("submit", (e) => {
@@ -1054,6 +1182,8 @@ function wireForms(showSection) {
 
 function wirePronunciationPractice() {
   const textInput = document.getElementById("pronunciation-text");
+  const phraseCategorySelect = document.getElementById("pronunciation-phrase-category");
+  const phraseSelect = document.getElementById("pronunciation-phrase-select");
   const micSelect = document.getElementById("pronunciation-mic");
   const listenBtn = document.getElementById("pronunciation-listen");
   const recordBtn = document.getElementById("pronunciation-record");
@@ -1066,6 +1196,8 @@ function wirePronunciationPractice() {
 
   if (
     !(textInput instanceof HTMLTextAreaElement) ||
+    !(phraseCategorySelect instanceof HTMLSelectElement) ||
+    !(phraseSelect instanceof HTMLSelectElement) ||
     !(micSelect instanceof HTMLSelectElement) ||
     !(listenBtn instanceof HTMLButtonElement) ||
     !(recordBtn instanceof HTMLButtonElement) ||
@@ -1195,6 +1327,44 @@ function wirePronunciationPractice() {
     );
   }
 
+  function refreshPhraseOptions() {
+    const phrases = getPhrases()
+      .map((p) => normalizePhraseEntry(p))
+      .filter((p) => p.korean && p.meaning && p.category);
+    const categories = [...new Set(phrases.map((p) => p.category))].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" })
+    );
+
+    const selectedCategory = phraseCategorySelect.value || "__all__";
+    phraseCategorySelect.innerHTML = `<option value="__all__">All categories</option>${categories
+      .map((c) => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`)
+      .join("")}`;
+    phraseCategorySelect.value = categories.includes(selectedCategory)
+      ? selectedCategory
+      : "__all__";
+
+    const visible =
+      phraseCategorySelect.value === "__all__"
+        ? phrases
+        : phrases.filter((p) => p.category === phraseCategorySelect.value);
+    visible.sort((a, b) => a.korean.localeCompare(b.korean, "ko"));
+
+    const selectedPhraseId = phraseSelect.value || "";
+    phraseSelect.innerHTML = `<option value="">Type your own phrase</option>${visible
+      .map(
+        (p) =>
+          `<option value="${escapeAttr(p.id)}">${escapeHtml(p.korean)} (${escapeHtml(
+            p.category
+          )})</option>`
+      )
+      .join("")}`;
+    if (selectedPhraseId && visible.some((p) => p.id === selectedPhraseId)) {
+      phraseSelect.value = selectedPhraseId;
+    } else {
+      phraseSelect.value = "";
+    }
+  }
+
   async function loadMicrophones() {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
@@ -1238,6 +1408,26 @@ function wirePronunciationPractice() {
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utt);
     setStatus("Playing model pronunciation...");
+  });
+
+  phraseCategorySelect.addEventListener("change", () => {
+    refreshPhraseOptions();
+    const selectedId = phraseSelect.value;
+    if (!selectedId) return;
+    const selectedPhrase = getPhrases().find((p) => p.id === selectedId);
+    if (selectedPhrase && selectedPhrase.korean) {
+      textInput.value = selectedPhrase.korean;
+    }
+  });
+
+  phraseSelect.addEventListener("change", () => {
+    const selectedId = phraseSelect.value;
+    if (!selectedId) return;
+    const selectedPhrase = getPhrases().find((p) => p.id === selectedId);
+    if (selectedPhrase && selectedPhrase.korean) {
+      textInput.value = selectedPhrase.korean;
+      setStatus(`Loaded phrase from category: ${selectedPhrase.category}`);
+    }
   });
 
   recordBtn.addEventListener("click", async () => {
@@ -1322,6 +1512,8 @@ function wirePronunciationPractice() {
   if (window.speechSynthesis?.getVoices) {
     window.speechSynthesis.getVoices();
   }
+  refreshPronunciationPhrasePicker = refreshPhraseOptions;
+  refreshPhraseOptions();
   loadMicrophones();
   // Warm up recognition object once so later records can reuse it.
   if (!recognitionInitialized) ensureRecognition();
@@ -1385,6 +1577,7 @@ function wireDataTransfer() {
       exportedAt: new Date().toISOString(),
       schemaVersion: 1,
       vocabulary: getWords().map((w) => normalizeWordEntry(w)),
+      phrases: getPhrases().map((p) => normalizePhraseEntry(p)),
       grammar: /** @type {GrammarTopic[]} */ (loadJson(STORAGE_GRAMMAR, [])),
       preplyLessons: lessons,
     };
@@ -1400,7 +1593,7 @@ function wireDataTransfer() {
     a.remove();
     URL.revokeObjectURL(url);
     setStatus(
-      `Export complete. Saved ${payload.vocabulary.length} words, ${payload.grammar.length} grammar topics, and ${lessons.length} PrePly lessons.`
+      `Export complete. Saved ${payload.vocabulary.length} words, ${payload.phrases.length} phrases, ${payload.grammar.length} grammar topics, and ${lessons.length} PrePly lessons.`
     );
   });
 
@@ -1413,6 +1606,7 @@ function wireDataTransfer() {
       const text = await file.text();
       const parsed = JSON.parse(text);
       const vocab = Array.isArray(parsed?.vocabulary) ? parsed.vocabulary : null;
+      const phrases = Array.isArray(parsed?.phrases) ? parsed.phrases : [];
       const grammar = Array.isArray(parsed?.grammar) ? parsed.grammar : null;
       const preplyLessons = Array.isArray(parsed?.preplyLessons) ? parsed.preplyLessons : [];
       if (!vocab || !grammar) {
@@ -1442,6 +1636,10 @@ function wireDataTransfer() {
           done: !!g.done,
         }))
         .filter((g) => g.topic);
+
+      const normalizedPhrases = phrases
+        .map((p) => normalizePhraseEntry(p))
+        .filter((p) => p.korean && p.meaning && p.category);
 
       const normalizedLessons = [];
       for (const lesson of preplyLessons) {
@@ -1476,15 +1674,17 @@ function wireDataTransfer() {
       }
 
       saveWords(normalizedWords);
+      savePhrases(normalizedPhrases);
       saveJson(STORAGE_GRAMMAR, normalizedGrammar);
       await replaceAllLessons(normalizedLessons);
       renderWords(document.getElementById("filter-words").value);
+      renderPhrases();
       renderGrammar();
       renderLessons();
       updateFlashPanel();
       refreshStats();
       setStatus(
-        `Import complete. Loaded ${normalizedWords.length} vocabulary entries, ${normalizedGrammar.length} grammar topics, and ${normalizedLessons.length} PrePly lessons.`
+        `Import complete. Loaded ${normalizedWords.length} vocabulary entries, ${normalizedPhrases.length} phrases, ${normalizedGrammar.length} grammar topics, and ${normalizedLessons.length} PrePly lessons.`
       );
     } catch {
       setStatus("Import failed: invalid JSON file.");
@@ -1509,6 +1709,7 @@ function init() {
 
   updateFlashPanel();
   renderWords("");
+  renderPhrases();
   renderGrammar();
   refreshStats();
 }
