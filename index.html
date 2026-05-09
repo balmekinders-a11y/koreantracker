@@ -35,6 +35,12 @@
           Pronunciation practice
         </button>
         <button type="button" class="nav-btn" data-section="preply">PrePly lessons</button>
+        <div class="session-nav-tile" aria-live="polite">
+          <p class="session-nav-label">Sessions</p>
+          <p class="session-nav-counts">
+            Total <span id="session-total-count">0</span> · Month <span id="session-month-count">0</span>
+          </p>
+        </div>
       </nav>
 
       <main class="main">
@@ -44,31 +50,31 @@
             Track vocabulary, grammar topics, and PrePly homework with screenshots and files — everything stays in this browser on your machine.
           </p>
           <div class="cards">
-            <article class="card stat-card">
+            <article class="card stat-card tile-card metric-tile" data-goto="vocabulary" role="button" tabindex="0">
               <h3>Vocabulary entries</h3>
               <p class="stat" id="stat-words">0</p>
             </article>
-            <article class="card stat-card">
+            <article class="card stat-card tile-card metric-tile" data-goto="phrases" role="button" tabindex="0">
+              <h3>Phrases entries</h3>
+              <p class="stat" id="stat-phrases">0</p>
+            </article>
+            <article class="card stat-card tile-card metric-tile" data-goto="grammar" role="button" tabindex="0">
               <h3>Grammar topics</h3>
               <p class="stat" id="stat-grammar">0</p>
             </article>
-            <article class="card stat-card">
+            <article class="card stat-card tile-card metric-tile" data-goto="preply" role="button" tabindex="0">
               <h3>PrePly lessons logged</h3>
               <p class="stat" id="stat-preply">0</p>
             </article>
-            <article class="card stat-card wotd-card">
+            <article class="card stat-card tile-card" data-goto="pronunciation" role="button" tabindex="0">
+              <h3>Pronunciaton</h3>
+              <p class="grammar-meta">Listen, record, and compare your pronunciation.</p>
+            </article>
+            <article class="card stat-card wotd-card tile-card">
               <h3>WORD OF THE DAY</h3>
               <div id="word-of-day-content" class="wotd-content">
                 <p class="grammar-meta">Loading...</p>
               </div>
-            </article>
-            <article class="card stat-card tile-card">
-              <h3>Practice tile</h3>
-              <p class="tile-title">Pronunciation Practice</p>
-              <p class="grammar-meta">Listen, record, and compare your pronunciation.</p>
-              <button type="button" class="btn secondary tile-btn" data-goto="pronunciation">
-                Open section
-              </button>
             </article>
           </div>
           <article class="card form-card data-transfer-card">
@@ -120,16 +126,16 @@
                   <span class="flash-label" id="flash-prompt-label">Translate:</span>
                   <div class="flash-term-row">
                     <p class="flash-term" id="flash-term" lang="ko"></p>
-                    <a
-                      id="flash-translate-link"
-                      class="word-translate-link flash-translate-link"
-                      href="https://translate.google.com/?sl=ko&amp;tl=en"
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      id="flash-speak-btn"
+                      class="word-sound-btn flash-speak-btn"
                       hidden
-                      title="Opens Google Translate — use the speaker icon for Korean audio"
-                      >Pronounce</a
+                      title="Play pronunciation"
+                      aria-label="Play Korean pronunciation"
                     >
+                      &#128266;
+                    </button>
                   </div>
                 </div>
                 <form id="flash-answer-form" class="flash-answer-row">
@@ -217,6 +223,57 @@
           <p class="lead">
             Build a phrase list with categories, then filter by category or review all phrases sorted by category.
           </p>
+
+          <div id="phrase-flashcard-panel" class="card form-card flashcard-panel">
+            <h3>Phrase flashcards</h3>
+            <p class="flash-help">
+              Practice phrase translation in both directions.
+            </p>
+            <div class="flash-mode-row" role="group" aria-label="Phrase flashcard direction">
+              <button type="button" class="btn secondary phrase-flash-mode-btn is-active" data-phrase-flash-mode="ko-en">
+                Korean → English
+              </button>
+              <button type="button" class="btn secondary phrase-flash-mode-btn" data-phrase-flash-mode="en-ko">
+                English → Korean
+              </button>
+            </div>
+            <div id="phrase-flash-empty" class="empty flash-empty">
+              Add phrases below to practice with flashcards.
+            </div>
+            <div id="phrase-flash-session" class="flash-session" hidden>
+              <div class="flash-toolbar">
+                <button type="button" class="btn primary" id="phrase-flash-draw">
+                  Draw a card
+                </button>
+              </div>
+              <div id="phrase-flash-card-body" class="flash-card-body" hidden>
+                <div class="flash-prompt">
+                  <span class="flash-label" id="phrase-flash-prompt-label">Translate:</span>
+                  <div class="flash-term-row">
+                    <p class="flash-term" id="phrase-flash-term" lang="ko"></p>
+                  </div>
+                </div>
+                <form id="phrase-flash-answer-form" class="flash-answer-row">
+                  <label class="flash-input-wrap">
+                    <span class="visually-hidden">Your answer</span>
+                    <input
+                      type="text"
+                      id="phrase-flash-input"
+                      class="flash-input"
+                      autocomplete="off"
+                      spellcheck="true"
+                      placeholder="Your answer"
+                    />
+                  </label>
+                  <button type="submit" class="btn primary">Check</button>
+                </form>
+                <div id="phrase-flash-feedback" class="flash-feedback" role="status" aria-live="polite"></div>
+                <div class="flash-after" id="phrase-flash-after" hidden>
+                  <button type="button" class="btn secondary" id="phrase-flash-next">Next card</button>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <form id="form-phrase" class="card form-card">
             <h3>Add phrase</h3>

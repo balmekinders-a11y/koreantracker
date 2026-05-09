@@ -3,6 +3,8 @@
 const STORAGE_WORDS = "kr-tracker-words-v1";
 const STORAGE_PHRASES = "kr-tracker-phrases-v1";
 const STORAGE_GRAMMAR = "kr-tracker-grammar-v1";
+const STORAGE_SESSION_METRICS = "kr-tracker-sessions-v1";
+const SESSION_STUDY_COUNTED_FLAG = "kr-tracker-study-session-counted-v1";
 const DB_NAME = "kr-tracker-db";
 const DB_VERSION = 1;
 const STORE_LESSONS = "lessons";
@@ -27,12 +29,72 @@ const WORD_OF_DAY_POOL = [
     illustration:
       '<svg viewBox="0 0 140 72" class="wotd-illustration-svg" aria-hidden="true"><rect x="1" y="1" width="138" height="70" rx="14" fill="#1e293b" stroke="#334155"/><polygon points="70,18 76,32 92,32 79,41 84,56 70,47 56,56 61,41 48,32 64,32" fill="#facc15"/><circle cx="34" cy="25" r="2.4" fill="#e2e8f0"/><circle cx="104" cy="22" r="2" fill="#e2e8f0"/><circle cx="112" cy="47" r="2.2" fill="#e2e8f0"/><circle cx="28" cy="46" r="1.8" fill="#e2e8f0"/></svg>',
   },
+  { korean: "바다", meaning: "sea", illustration: "" },
+  { korean: "산", meaning: "mountain", illustration: "" },
+  { korean: "꽃", meaning: "flower", illustration: "" },
+  { korean: "강", meaning: "river", illustration: "" },
+  { korean: "비", meaning: "rain", illustration: "" },
+  { korean: "눈", meaning: "snow", illustration: "" },
+  { korean: "봄", meaning: "spring", illustration: "" },
+  { korean: "여름", meaning: "summer", illustration: "" },
+  { korean: "가을", meaning: "autumn", illustration: "" },
+  { korean: "겨울", meaning: "winter", illustration: "" },
+  { korean: "학교", meaning: "school", illustration: "" },
+  { korean: "선생님", meaning: "teacher", illustration: "" },
+  { korean: "학생", meaning: "student", illustration: "" },
+  { korean: "친구", meaning: "friend", illustration: "" },
+  { korean: "가족", meaning: "family", illustration: "" },
+  { korean: "사랑", meaning: "love", illustration: "" },
+  { korean: "마음", meaning: "heart / mind", illustration: "" },
+  { korean: "시간", meaning: "time", illustration: "" },
+  { korean: "아침", meaning: "morning", illustration: "" },
+  { korean: "저녁", meaning: "evening", illustration: "" },
+  { korean: "오늘", meaning: "today", illustration: "" },
+  { korean: "내일", meaning: "tomorrow", illustration: "" },
+  { korean: "어제", meaning: "yesterday", illustration: "" },
+  { korean: "음식", meaning: "food", illustration: "" },
+  { korean: "물", meaning: "water", illustration: "" },
+  { korean: "커피", meaning: "coffee", illustration: "" },
+  { korean: "책", meaning: "book", illustration: "" },
+  { korean: "연필", meaning: "pencil", illustration: "" },
+  { korean: "의자", meaning: "chair", illustration: "" },
+  { korean: "창문", meaning: "window", illustration: "" },
+  { korean: "문", meaning: "door", illustration: "" },
+  { korean: "도시", meaning: "city", illustration: "" },
+  { korean: "길", meaning: "road / way", illustration: "" },
+  { korean: "시장", meaning: "market", illustration: "" },
+  { korean: "공원", meaning: "park", illustration: "" },
+  { korean: "여행", meaning: "travel", illustration: "" },
+  { korean: "비행기", meaning: "airplane", illustration: "" },
+  { korean: "기차", meaning: "train", illustration: "" },
+  { korean: "버스", meaning: "bus", illustration: "" },
+  { korean: "지하철", meaning: "subway", illustration: "" },
+  { korean: "사진", meaning: "photo", illustration: "" },
+  { korean: "노래", meaning: "song", illustration: "" },
+  { korean: "영화", meaning: "movie", illustration: "" },
+  { korean: "운동", meaning: "exercise", illustration: "" },
+  { korean: "건강", meaning: "health", illustration: "" },
+  { korean: "행복", meaning: "happiness", illustration: "" },
+  { korean: "희망", meaning: "hope", illustration: "" },
+  { korean: "문제", meaning: "problem", illustration: "" },
+  { korean: "질문", meaning: "question", illustration: "" },
+  { korean: "대답", meaning: "answer", illustration: "" },
+  { korean: "시작", meaning: "start", illustration: "" },
+  { korean: "끝", meaning: "end", illustration: "" },
 ];
 
 /** Vocabulary list row in inline edit mode (word `id` or `null`) */
 let vocabularyEditingId = null;
+/** Phrase list row in inline edit mode (phrase `id` or `null`) */
+let phraseEditingId = null;
+/** Grammar list row in inline edit mode (topic `id` or `null`) */
+let grammarEditingId = null;
 /** Vocabulary sort mode ("added" | "korean-alpha") */
 let vocabularySortMode = "added";
+/** Vocabulary row with expanded inline actions (word `id` or `null`) */
+let vocabularyActionsOpenId = null;
+/** Phrase row with expanded inline actions (phrase `id` or `null`) */
+let phraseActionsOpenId = null;
 /** @type {null | (() => void)} */
 let refreshPronunciationPhrasePicker = null;
 
@@ -63,6 +125,63 @@ function loadJson(key, fallback) {
 
 function saveJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function monthKey(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+function getSessionMetrics() {
+  try {
+    const raw = localStorage.getItem(STORAGE_SESSION_METRICS);
+    if (!raw) return { total: 0, monthly: {} };
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return { total: 0, monthly: {} };
+    }
+    const total =
+      typeof parsed.total === "number" && !Number.isNaN(parsed.total)
+        ? Math.max(0, Math.floor(parsed.total))
+        : 0;
+    const monthly =
+      parsed.monthly && typeof parsed.monthly === "object" && !Array.isArray(parsed.monthly)
+        ? parsed.monthly
+        : {};
+    return { total, monthly };
+  } catch {
+    return { total: 0, monthly: {} };
+  }
+}
+
+function saveSessionMetrics(metrics) {
+  localStorage.setItem(STORAGE_SESSION_METRICS, JSON.stringify(metrics));
+}
+
+function renderSessionMetrics() {
+  const totalEl = document.getElementById("session-total-count");
+  const monthEl = document.getElementById("session-month-count");
+  if (!(totalEl instanceof HTMLElement) || !(monthEl instanceof HTMLElement)) return;
+  const metrics = getSessionMetrics();
+  const currentMonth = monthKey();
+  totalEl.textContent = String(metrics.total || 0);
+  monthEl.textContent = String(metrics.monthly?.[currentMonth] || 0);
+}
+
+function recordSessionEvent() {
+  const alreadyCounted = sessionStorage.getItem(SESSION_STUDY_COUNTED_FLAG) === "1";
+  if (alreadyCounted) {
+    renderSessionMetrics();
+    return;
+  }
+  const metrics = getSessionMetrics();
+  const currentMonth = monthKey();
+  metrics.total = (metrics.total || 0) + 1;
+  metrics.monthly[currentMonth] = (metrics.monthly[currentMonth] || 0) + 1;
+  saveSessionMetrics(metrics);
+  sessionStorage.setItem(SESSION_STUDY_COUNTED_FLAG, "1");
+  renderSessionMetrics();
 }
 
 function openDb() {
@@ -163,11 +282,20 @@ function wireNavigation() {
   });
 
   document.querySelectorAll("[data-goto]").forEach((el) => {
-    el.addEventListener("click", () => {
+    const go = () => {
       const id = el.getAttribute("data-goto");
       if (id) showSection(id);
       document.querySelector(`[data-section="${id}"]`)?.focus?.();
-    });
+    };
+    el.addEventListener("click", go);
+    if (!(el instanceof HTMLButtonElement)) {
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          go();
+        }
+      });
+    }
   });
 
   return showSection;
@@ -181,6 +309,7 @@ function wireNavigation() {
  *   notes: string,
  *   practiced: boolean,
  *   flashCorrectCount: number,
+ *   flashIncorrectCount: number,
  *   practiceWeight: number,
  * }} Word
  */
@@ -220,6 +349,10 @@ function normalizeWordEntry(w) {
     flashCorrectCount:
       typeof w.flashCorrectCount === "number" && !Number.isNaN(w.flashCorrectCount)
         ? Math.max(0, Math.floor(w.flashCorrectCount))
+        : 0,
+    flashIncorrectCount:
+      typeof w.flashIncorrectCount === "number" && !Number.isNaN(w.flashIncorrectCount)
+        ? Math.max(0, Math.floor(w.flashIncorrectCount))
         : 0,
     practiceWeight:
       typeof w.practiceWeight === "number" && !Number.isNaN(w.practiceWeight)
@@ -276,11 +409,26 @@ function meaningAlternatives(meaning) {
 }
 
 /**
+ * Normalized key for Korean word matching in suggestion lists.
+ * Collapses whitespace and strips punctuation/symbols so formatting
+ * differences do not cause duplicate suggestions.
+ * @param {string} text
+ */
+function normalizeKoreanLookupKey(text) {
+  return String(text || "")
+    .normalize("NFC")
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/[\p{P}\p{S}]/gu, "");
+}
+
+/**
  * @param {string} userRaw
  * @param {string[]} expectedOptions raw strings to compare (already expanded alternatives)
  * @param {"en" | "ko"} mode
+ * @param {number} typoTolerance max edit distance accepted as typo
  */
-function scoreTypedAnswer(userRaw, expectedOptions, mode) {
+function scoreTypedAnswer(userRaw, expectedOptions, mode, typoTolerance = 1) {
   const u = normalizeForCompare(userRaw, mode);
   if (!u) {
     return { kind: "wrong", dist: Infinity, bestExpected: expectedOptions[0] || "" };
@@ -296,27 +444,56 @@ function scoreTypedAnswer(userRaw, expectedOptions, mode) {
     }
   }
   if (bestDist === 0) return { kind: "correct", dist: 0, bestExpected };
-  if (bestDist === 1) return { kind: "typo", dist: 1, bestExpected };
+  if (bestDist <= Math.max(0, Math.floor(typoTolerance))) {
+    return { kind: "typo", dist: bestDist, bestExpected };
+  }
   return { kind: "wrong", dist: bestDist, bestExpected };
 }
 
 /**
  * @param {Word[]} words
  * @param {string | null} excludeId skip until another word exists (avoid same card twice)
+ * @param {string[]} recentIds recently drawn card ids (most recent first)
  */
-function pickWeightedWord(words, excludeId) {
+function pickWeightedWord(words, excludeId, recentIds = []) {
   if (!words.length) return null;
-  let pool = words;
-  if (excludeId && words.length > 1) {
-    const others = words.filter((w) => w.id !== excludeId);
-    if (others.length) pool = others;
+  const recentSet = new Set(recentIds);
+  const byRecentRecency = [...recentIds].reverse();
+
+  let pool = words.filter((w) => w.id !== excludeId && !recentSet.has(w.id));
+  if (!pool.length) {
+    pool = words.filter((w) => w.id !== excludeId);
   }
+  if (!pool.length) {
+    pool = words;
+  }
+
   let total = 0;
   const weights = pool.map((w) => {
-    const wt = 1 + (w.practiceWeight || 0);
+    // Base recurrence:
+    // - normal words: 1x
+    // - learned words: 0.5x (50% less frequent)
+    // - extra-attention words: 6.05x (505% more frequent)
+    let wt = 1;
+    const needsAttention = (w.practiceWeight || 0) > 0;
+    if (needsAttention) {
+      wt = 6.05;
+    } else if (w.practiced) {
+      wt = 0.5;
+    }
     total += wt;
     return wt;
   });
+  // Slightly penalize cards that were seen recently.
+  for (let i = 0; i < pool.length; i++) {
+    const recentIndex = byRecentRecency.indexOf(pool[i].id);
+    if (recentIndex >= 0) {
+      const recencyPenalty = 0.7 + Math.min(0.25, recentIndex * 0.05);
+      weights[i] *= recencyPenalty;
+    }
+  }
+  total = weights.reduce((sum, w) => sum + w, 0);
+
   let r = Math.random() * total;
   for (let i = 0; i < pool.length; i++) {
     r -= weights[i];
@@ -327,8 +504,11 @@ function pickWeightedWord(words, excludeId) {
 
 function refreshStats() {
   const words = getWords();
+  const phrases = getPhrases();
   const grammar = /** @type {GrammarTopic[]} */ (loadJson(STORAGE_GRAMMAR, []));
   document.getElementById("stat-words").textContent = String(words.length);
+  const phraseStat = document.getElementById("stat-phrases");
+  if (phraseStat) phraseStat.textContent = String(phrases.length);
   document.getElementById("stat-grammar").textContent = String(grammar.length);
   renderWordOfDay(words);
   getAllLessons().then((lessons) => {
@@ -342,26 +522,53 @@ function refreshStats() {
 function renderWordOfDay(words) {
   const content = document.getElementById("word-of-day-content");
   if (!content) return;
-  const existing = new Set(words.map((w) => normalizeForCompare(w.korean, "ko")));
-  const available = WORD_OF_DAY_POOL.filter(
-    (item) => !existing.has(normalizeForCompare(item.korean, "ko"))
+  const existing = new Set(
+    words
+      .map((w) => normalizeKoreanLookupKey(w.korean))
+      .filter(Boolean)
   );
-  if (!available.length) {
-    content.innerHTML = `<p class="wotd-word">Great job!</p><p class="wotd-meaning">All suggested words are already in your list.</p>`;
-    return;
-  }
+  const available = WORD_OF_DAY_POOL.filter(
+    (item) => !existing.has(normalizeKoreanLookupKey(item.korean))
+  );
+  const fallbackWord = (() => {
+    let idx = 1;
+    while (existing.has(normalizeKoreanLookupKey(`학습단어${idx}`))) idx += 1;
+    return { korean: `학습단어${idx}`, meaning: `study word #${idx}`, illustration: "" };
+  })();
   const daySeed = new Date().toISOString().slice(0, 10);
   let hash = 0;
   for (let i = 0; i < daySeed.length; i++) {
     hash = (hash * 31 + daySeed.charCodeAt(i)) | 0;
   }
-  const idx = Math.abs(hash) % available.length;
-  const picked = available[idx];
+  const picked = available.length
+    ? available[Math.abs(hash) % available.length]
+    : fallbackWord;
+  const illustrationHtml = picked.illustration
+    ? `<div class="wotd-illustration">${picked.illustration}</div>`
+    : "";
   content.innerHTML = `
-    <p class="wotd-word" lang="ko">${escapeHtml(picked.korean)}</p>
+    <div class="wotd-word-row">
+      <p class="wotd-word" lang="ko">${escapeHtml(picked.korean)}</p>
+      <button
+        type="button"
+        class="wotd-sound-btn"
+        data-speak-wotd="${escapeAttr(picked.korean)}"
+        aria-label="Pronounce ${escapeAttr(picked.korean)}"
+        title="Play pronunciation"
+      >
+        &#128266;
+      </button>
+    </div>
     <p class="wotd-meaning">${escapeHtml(picked.meaning)}</p>
-    <div class="wotd-illustration">${picked.illustration}</div>
+    ${illustrationHtml}
   `;
+  const speakBtn = content.querySelector("[data-speak-wotd]");
+  if (speakBtn instanceof HTMLButtonElement) {
+    speakBtn.addEventListener("click", () => {
+      const korean = speakBtn.getAttribute("data-speak-wotd") || "";
+      speakKoreanText(korean);
+    });
+  }
 }
 
 /**
@@ -372,7 +579,7 @@ function renderWordRowHtml(w) {
     w.practiceWeight > 0
       ? ` · review priority ×${w.practiceWeight} (flashcards favor this word)`
       : "";
-  const flashLine = `<p class="word-stats">Flash points: ${w.flashCorrectCount} / ${FLASH_LEARNED_AT} toward practiced${prio}</p>`;
+  const flashLine = `<p class="word-stats">Flash results: ${w.flashCorrectCount} correct / ${w.flashIncorrectCount} incorrect · ${w.flashCorrectCount} / ${FLASH_LEARNED_AT} toward practiced${prio}</p>`;
   if (w.id === vocabularyEditingId) {
     return `
         <div class="list-row list-row--editing" data-word-id="${escapeAttr(w.id)}">
@@ -431,9 +638,17 @@ function renderWordRowHtml(w) {
             aria-label="Pronounce ${escapeAttr(w.korean)}"
             >&#128266;</button
           >
-          <div class="list-row" data-word-id="${escapeAttr(w.id)}">
+          <div class="list-row ${
+            w.id === vocabularyActionsOpenId ? "list-row--actions-open" : ""
+          }" data-word-id="${escapeAttr(w.id)}">
             <div class="list-row-main">
-              <div class="word-inline-row">
+              <div
+                class="word-inline-row"
+                data-toggle-word-actions="${escapeAttr(w.id)}"
+                role="button"
+                tabindex="0"
+                aria-expanded="${w.id === vocabularyActionsOpenId ? "true" : "false"}"
+              >
                 <p class="word-korean">${escapeHtml(w.korean)}</p>
                 <p class="word-meaning">${escapeHtml(w.meaning)}</p>
               </div>
@@ -498,10 +713,27 @@ function renderWords(filter = "") {
     btn.addEventListener("click", () => {
       const id = btn.getAttribute("data-edit-word");
       if (id) vocabularyEditingId = id;
+      vocabularyActionsOpenId = null;
       renderWords(document.getElementById("filter-words").value);
       const row = list.querySelector(`[data-word-id="${id}"]`);
       const first = row?.querySelector('[data-edit-field="korean"]');
       if (first instanceof HTMLElement) first.focus();
+    });
+  });
+
+  list.querySelectorAll("[data-toggle-word-actions]").forEach((line) => {
+    const toggle = () => {
+      const id = line.getAttribute("data-toggle-word-actions");
+      if (!id) return;
+      vocabularyActionsOpenId = vocabularyActionsOpenId === id ? null : id;
+      renderWords(document.getElementById("filter-words").value);
+    };
+    line.addEventListener("click", toggle);
+    line.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        toggle();
+      }
     });
   });
 
@@ -565,6 +797,7 @@ function renderWords(filter = "") {
       all = all.filter((x) => x.id !== id);
       saveWords(all);
       if (vocabularyEditingId === id) vocabularyEditingId = null;
+      if (vocabularyActionsOpenId === id) vocabularyActionsOpenId = null;
       renderWords(document.getElementById("filter-words").value);
       updateFlashPanel();
       refreshStats();
@@ -575,6 +808,9 @@ function renderWords(filter = "") {
 function renderGrammar() {
   const list = document.getElementById("grammar-list");
   const topics = /** @type {GrammarTopic[]} */ (loadJson(STORAGE_GRAMMAR, []));
+  if (grammarEditingId && !topics.some((g) => g.id === grammarEditingId)) {
+    grammarEditingId = null;
+  }
   if (topics.length === 0) {
     list.innerHTML = `<div class="empty">No grammar topics yet. Add one above.</div>`;
     return;
@@ -582,25 +818,129 @@ function renderGrammar() {
   list.innerHTML = topics
     .map(
       (g) => `
+      ${
+        g.id === grammarEditingId
+          ? `
+      <div class="list-row list-row--editing" data-grammar-id="${escapeAttr(g.id)}">
+        <form class="word-edit-form" data-grammar-edit-form="${escapeAttr(g.id)}">
+          <div class="list-row-main">
+            <p class="edit-form-title">Edit grammar topic</p>
+            <div class="edit-word-grid">
+              <label class="edit-field span-2">
+                <span>Topic</span>
+                <input
+                  type="text"
+                  class="edit-input"
+                  data-grammar-edit-field="topic"
+                  value="${escapeAttr(g.topic)}"
+                  autocomplete="off"
+                />
+              </label>
+              <label class="edit-field span-2">
+                <span>Notes</span>
+                <textarea
+                  class="edit-input"
+                  data-grammar-edit-field="notes"
+                  rows="3"
+                  placeholder="Examples, reminders, edge cases..."
+                >${escapeHtml(g.notes || "")}</textarea>
+              </label>
+            </div>
+            <label class="checkbox-label edit-learned-row">
+              <input
+                type="checkbox"
+                data-grammar-edit-field="done"
+                ${g.done ? "checked" : ""}
+              />
+              Comfortable
+            </label>
+          </div>
+          <div class="row-actions row-actions--stack">
+            <button type="submit" class="btn primary">Save</button>
+            <button type="button" class="btn secondary" data-cancel-edit-grammar="${escapeAttr(
+              g.id
+            )}">Cancel</button>
+            <button type="button" class="btn ghost danger" data-remove-grammar="${escapeAttr(
+              g.id
+            )}">Remove</button>
+          </div>
+        </form>
+      </div>`
+          : `
       <div class="list-row" data-grammar-id="${escapeAttr(g.id)}">
         <div class="list-row-main">
           <p class="grammar-topic">${escapeHtml(g.topic)}</p>
           ${
             g.notes
-              ? `<p class="grammar-meta">${escapeHtml(g.notes)}</p>`
+              ? `<p class="grammar-meta grammar-meta--multiline">${escapeHtml(g.notes)}</p>`
               : ""
           }
         </div>
         <div class="row-actions">
           <label class="checkbox-label">
-            <input type="checkbox" ${g.done ? "checked" : ""} data-toggle-grammar="${escapeAttr(g.id)}" />
+            <input type="checkbox" ${g.done ? "checked" : ""} data-toggle-grammar="${escapeAttr(
+              g.id
+            )}" />
             Comfortable
           </label>
-          <button type="button" class="btn ghost" data-remove-grammar="${escapeAttr(g.id)}">Remove</button>
+          <button type="button" class="btn secondary" data-edit-grammar="${escapeAttr(
+            g.id
+          )}">Edit</button>
+          <button type="button" class="btn ghost" data-remove-grammar="${escapeAttr(
+            g.id
+          )}">Remove</button>
         </div>
       </div>`
+      }`
     )
     .join("");
+
+  list.querySelectorAll("[data-edit-grammar]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-edit-grammar");
+      if (!id) return;
+      grammarEditingId = id;
+      renderGrammar();
+      const row = list.querySelector(`[data-grammar-id="${id}"]`);
+      const first = row?.querySelector('[data-grammar-edit-field="topic"]');
+      if (first instanceof HTMLElement) first.focus();
+    });
+  });
+
+  list.querySelectorAll("[data-cancel-edit-grammar]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      grammarEditingId = null;
+      renderGrammar();
+    });
+  });
+
+  list.querySelectorAll("[data-grammar-edit-form]").forEach((form) => {
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const id = form.getAttribute("data-grammar-edit-form");
+      if (!id) return;
+      const topic =
+        form.querySelector('[data-grammar-edit-field="topic"]')?.value?.trim() ?? "";
+      const notes =
+        form.querySelector('[data-grammar-edit-field="notes"]')?.value?.trim() ?? "";
+      const doneEl = form.querySelector('[data-grammar-edit-field="done"]');
+      const done = doneEl instanceof HTMLInputElement ? doneEl.checked : false;
+      if (!topic) return;
+      const all = /** @type {GrammarTopic[]} */ (loadJson(STORAGE_GRAMMAR, []));
+      const idx = all.findIndex((x) => x.id === id);
+      if (idx < 0) return;
+      all[idx] = {
+        ...all[idx],
+        topic,
+        notes,
+        done,
+      };
+      saveJson(STORAGE_GRAMMAR, all);
+      grammarEditingId = null;
+      renderGrammar();
+      refreshStats();
+    });
+  });
 
   list.querySelectorAll("[data-toggle-grammar]").forEach((input) => {
     input.addEventListener("change", () => {
@@ -621,6 +961,7 @@ function renderGrammar() {
       let all = /** @type {GrammarTopic[]} */ (loadJson(STORAGE_GRAMMAR, []));
       all = all.filter((x) => x.id !== id);
       saveJson(STORAGE_GRAMMAR, all);
+      if (grammarEditingId === id) grammarEditingId = null;
       renderGrammar();
       refreshStats();
     });
@@ -672,6 +1013,10 @@ function renderPhrases() {
     return a.korean.localeCompare(b.korean, "ko");
   });
 
+  if (phraseEditingId && !visible.some((p) => p.id === phraseEditingId)) {
+    phraseEditingId = null;
+  }
+
   if (!visible.length) {
     list.innerHTML = `<div class="empty">No phrases found for this category.</div>`;
     return;
@@ -680,20 +1025,151 @@ function renderPhrases() {
   list.innerHTML = visible
     .map(
       (p) => `
-      <div class="list-row" data-phrase-id="${escapeAttr(p.id)}">
-        <div class="list-row-main">
-          <div class="word-inline-row">
-            <p class="word-korean">${escapeHtml(p.korean)}</p>
-            <p class="word-meaning">${escapeHtml(p.meaning)}</p>
+      ${
+        p.id === phraseEditingId
+          ? `
+      <div class="list-row list-row--editing" data-phrase-id="${escapeAttr(p.id)}">
+        <form class="word-edit-form" data-phrase-edit-form="${escapeAttr(p.id)}">
+          <div class="list-row-main">
+            <p class="edit-form-title">Edit phrase</p>
+            <div class="edit-word-grid">
+              <label class="edit-field">
+                <span>Korean phrase</span>
+                <input type="text" class="edit-input" data-phrase-edit-field="korean" value="${escapeAttr(
+                  p.korean
+                )}" autocomplete="off" lang="ko-KR" inputmode="text" />
+              </label>
+              <label class="edit-field">
+                <span>Meaning</span>
+                <input type="text" class="edit-input" data-phrase-edit-field="meaning" value="${escapeAttr(
+                  p.meaning
+                )}" autocomplete="off" lang="en" inputmode="text" />
+              </label>
+              <label class="edit-field span-2">
+                <span>Category</span>
+                <input type="text" class="edit-input" data-phrase-edit-field="category" value="${escapeAttr(
+                  p.category
+                )}" list="phrase-category-options" autocomplete="off" />
+              </label>
+            </div>
           </div>
-          <p class="grammar-meta">Category: ${escapeHtml(p.category)}</p>
-        </div>
-        <div class="row-actions">
-          <button type="button" class="btn ghost" data-remove-phrase="${escapeAttr(p.id)}">Remove</button>
+          <div class="row-actions row-actions--stack">
+            <button type="submit" class="btn primary">Save</button>
+            <button type="button" class="btn secondary" data-cancel-edit-phrase="${escapeAttr(
+              p.id
+            )}">Cancel</button>
+            <button type="button" class="btn ghost danger" data-remove-phrase="${escapeAttr(
+              p.id
+            )}">Remove</button>
+          </div>
+        </form>
+      </div>`
+          : `
+      <div class="word-row-wrap" data-phrase-wrap-id="${escapeAttr(p.id)}">
+        <button
+          type="button"
+          class="word-sound-btn"
+          data-speak-korean="${escapeAttr(p.korean)}"
+          title="Play pronunciation"
+          aria-label="Pronounce ${escapeAttr(p.korean)}"
+          >&#128266;</button
+        >
+        <div class="list-row ${
+          p.id === phraseActionsOpenId ? "list-row--actions-open" : ""
+        }" data-phrase-id="${escapeAttr(p.id)}">
+          <div class="list-row-main">
+            <div
+              class="word-inline-row"
+              data-toggle-phrase-actions="${escapeAttr(p.id)}"
+              role="button"
+              tabindex="0"
+              aria-expanded="${p.id === phraseActionsOpenId ? "true" : "false"}"
+            >
+              <p class="word-korean">${escapeHtml(p.korean)}</p>
+              <p class="word-meaning">${escapeHtml(p.meaning)}</p>
+              <span class="phrase-category-inline">${escapeHtml(p.category)}</span>
+            </div>
+          </div>
+          <div class="row-actions row-actions--stack">
+            <button type="button" class="btn secondary" data-edit-phrase="${escapeAttr(p.id)}">Edit</button>
+            <button type="button" class="btn ghost" data-remove-phrase="${escapeAttr(p.id)}">Remove</button>
+          </div>
         </div>
       </div>`
+      }`
     )
     .join("");
+
+  list.querySelectorAll("[data-speak-korean]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const korean = btn.getAttribute("data-speak-korean") || "";
+      speakKoreanText(korean);
+    });
+  });
+
+  list.querySelectorAll("[data-edit-phrase]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-edit-phrase");
+      if (!id) return;
+      phraseEditingId = id;
+      phraseActionsOpenId = null;
+      renderPhrases();
+      const row = list.querySelector(`[data-phrase-id="${id}"]`);
+      const first = row?.querySelector('[data-phrase-edit-field="korean"]');
+      if (first instanceof HTMLElement) first.focus();
+    });
+  });
+
+  list.querySelectorAll("[data-toggle-phrase-actions]").forEach((line) => {
+    const toggle = () => {
+      const id = line.getAttribute("data-toggle-phrase-actions");
+      if (!id) return;
+      phraseActionsOpenId = phraseActionsOpenId === id ? null : id;
+      renderPhrases();
+    };
+    line.addEventListener("click", toggle);
+    line.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        toggle();
+      }
+    });
+  });
+
+  list.querySelectorAll("[data-cancel-edit-phrase]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      phraseEditingId = null;
+      renderPhrases();
+    });
+  });
+
+  list.querySelectorAll("[data-phrase-edit-form]").forEach((form) => {
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const id = form.getAttribute("data-phrase-edit-form");
+      if (!id) return;
+      const korean =
+        form.querySelector('[data-phrase-edit-field="korean"]')?.value?.trim() ?? "";
+      const meaning =
+        form.querySelector('[data-phrase-edit-field="meaning"]')?.value?.trim() ?? "";
+      const category =
+        form.querySelector('[data-phrase-edit-field="category"]')?.value?.trim() ?? "";
+      if (!korean || !meaning || !category) return;
+      const all = getPhrases();
+      const idx = all.findIndex((x) => x.id === id);
+      if (idx < 0) return;
+      all[idx] = normalizePhraseEntry({
+        ...all[idx],
+        korean,
+        meaning,
+        category,
+      });
+      savePhrases(all);
+      phraseEditingId = null;
+      renderPhrases();
+      updatePhraseFlashPanel();
+    });
+  });
 
   list.querySelectorAll("[data-remove-phrase]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -701,7 +1177,10 @@ function renderPhrases() {
       if (!id || !confirm("Remove this phrase from your list?")) return;
       const next = getPhrases().filter((p) => p.id !== id);
       savePhrases(next);
+      if (phraseEditingId === id) phraseEditingId = null;
+      if (phraseActionsOpenId === id) phraseActionsOpenId = null;
       renderPhrases();
+      updatePhraseFlashPanel();
     });
   });
 }
@@ -849,18 +1328,38 @@ function updateFlashPanel() {
   }
 }
 
+function updatePhraseFlashPanel() {
+  const phrases = getPhrases()
+    .map((p) => normalizePhraseEntry(p))
+    .filter((p) => p.korean && p.meaning);
+  const flashEmpty = document.getElementById("phrase-flash-empty");
+  const flashSession = document.getElementById("phrase-flash-session");
+  if (!flashEmpty || !flashSession) return;
+  if (!phrases.length) {
+    flashEmpty.hidden = false;
+    flashSession.hidden = true;
+  } else {
+    flashEmpty.hidden = true;
+    flashSession.hidden = false;
+  }
+}
+
 function wireFlashcards() {
   let flashMode = /** @type {"ko-en" | "en-ko"} */ ("ko-en");
   /** @type {string | null} */
   let currentFlashWordId = null;
+  /** @type {string[]} */
+  let recentFlashWordIds = [];
   let answered = false;
 
-  const modeBtns = document.querySelectorAll(".flash-mode-btn");
+  const panel = document.getElementById("flashcard-panel");
+  if (!(panel instanceof HTMLElement)) return;
+  const modeBtns = panel.querySelectorAll(".flash-mode-btn");
   const drawBtn = document.getElementById("flash-draw");
   const cardBody = document.getElementById("flash-card-body");
   const labelEl = document.getElementById("flash-prompt-label");
   const termEl = document.getElementById("flash-term");
-  const flashTranslateLink = document.getElementById("flash-translate-link");
+  const flashSpeakBtn = document.getElementById("flash-speak-btn");
   const form = document.getElementById("flash-answer-form");
   const input = document.getElementById("flash-input");
   const feedback = document.getElementById("flash-feedback");
@@ -897,10 +1396,16 @@ function wireFlashcards() {
   function drawCard() {
     const words = getWords().map((w) => normalizeWordEntry(w));
     if (!words.length) return;
+    const recentWindowSize = Math.min(5, Math.floor(words.length / 2));
+    const recentWindow = recentFlashWordIds.slice(0, recentWindowSize);
     clearFeedbackClasses();
-    const picked = pickWeightedWord(words, currentFlashWordId);
+    const picked = pickWeightedWord(words, currentFlashWordId, recentWindow);
     if (!picked) return;
     currentFlashWordId = picked.id;
+    recentFlashWordIds = [picked.id, ...recentFlashWordIds.filter((id) => id !== picked.id)];
+    if (recentFlashWordIds.length > 12) {
+      recentFlashWordIds = recentFlashWordIds.slice(0, 12);
+    }
     setAnswerState(false);
     cardBody.hidden = false;
 
@@ -911,9 +1416,10 @@ function wireFlashcards() {
       termEl.classList.remove("is-meaning-prompt");
       input.placeholder = "Type the English meaning";
       input.setAttribute("lang", "en");
-      if (flashTranslateLink instanceof HTMLAnchorElement) {
-        flashTranslateLink.href = googleTranslateKoreanUrl(picked.korean);
-        flashTranslateLink.hidden = false;
+      if (flashSpeakBtn instanceof HTMLButtonElement) {
+        flashSpeakBtn.hidden = false;
+        flashSpeakBtn.setAttribute("data-speak-korean", picked.korean);
+        flashSpeakBtn.setAttribute("aria-label", `Pronounce ${picked.korean}`);
       }
     } else {
       labelEl.textContent = "Write in Korean";
@@ -922,7 +1428,10 @@ function wireFlashcards() {
       termEl.classList.add("is-meaning-prompt");
       input.placeholder = "Type the Korean";
       input.setAttribute("lang", "ko-KR");
-      if (flashTranslateLink) flashTranslateLink.hidden = true;
+      if (flashSpeakBtn instanceof HTMLButtonElement) {
+        flashSpeakBtn.hidden = true;
+        flashSpeakBtn.removeAttribute("data-speak-korean");
+      }
     }
     input.value = "";
     input.focus();
@@ -935,8 +1444,12 @@ function wireFlashcards() {
       const m = btn.getAttribute("data-flash-mode");
       if (m === "ko-en" || m === "en-ko") flashMode = m;
       currentFlashWordId = null;
+      recentFlashWordIds = [];
       cardBody.hidden = true;
-      if (flashTranslateLink) flashTranslateLink.hidden = true;
+      if (flashSpeakBtn instanceof HTMLButtonElement) {
+        flashSpeakBtn.hidden = true;
+        flashSpeakBtn.removeAttribute("data-speak-korean");
+      }
       clearFeedbackClasses();
       setAnswerState(false);
       input.value = "";
@@ -944,6 +1457,12 @@ function wireFlashcards() {
   });
 
   drawBtn.addEventListener("click", () => drawCard());
+  if (flashSpeakBtn instanceof HTMLButtonElement) {
+    flashSpeakBtn.addEventListener("click", () => {
+      const korean = flashSpeakBtn.getAttribute("data-speak-korean") || "";
+      speakKoreanText(korean);
+    });
+  }
 
   form.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -987,12 +1506,14 @@ function wireFlashcards() {
       feedback.classList.add("is-correct");
       feedback.innerHTML = `Correct — +1 point.<span class="flash-meta">${escapeHtml(meta)}</span>`;
     } else if (score.kind === "typo") {
+      words[idx].flashIncorrectCount = words[idx].flashIncorrectCount + 1;
       words[idx].practiceWeight = words[idx].practiceWeight + 3;
       saveWords(words.map(normalizeWordEntry));
       feedback.classList.add("is-typo");
       const meta = `Your answer is off by a single edit (one missing, extra, or mistyped character). No point; review priority increased. Expected: ${score.bestExpected}`;
       feedback.innerHTML = `Almost.<span class="flash-meta">${escapeHtml(meta)}</span>`;
     } else {
+      words[idx].flashIncorrectCount = words[idx].flashIncorrectCount + 1;
       words[idx].practiceWeight = words[idx].practiceWeight + 3;
       saveWords(words.map(normalizeWordEntry));
       feedback.classList.add("is-wrong");
@@ -1000,8 +1521,144 @@ function wireFlashcards() {
       feedback.innerHTML = `Not quite.<span class="flash-meta">${escapeHtml(meta)}</span>`;
     }
 
+    recordSessionEvent();
     renderWords(document.getElementById("filter-words").value);
     refreshStats();
+    setAnswerState(true);
+  });
+
+  nextBtn.addEventListener("click", () => drawCard());
+}
+
+function wirePhraseFlashcards() {
+  let flashMode = /** @type {"ko-en" | "en-ko"} */ ("ko-en");
+  /** @type {string | null} */
+  let currentPhraseId = null;
+  let answered = false;
+
+  const modeBtns = document.querySelectorAll(".phrase-flash-mode-btn");
+  const drawBtn = document.getElementById("phrase-flash-draw");
+  const cardBody = document.getElementById("phrase-flash-card-body");
+  const labelEl = document.getElementById("phrase-flash-prompt-label");
+  const termEl = document.getElementById("phrase-flash-term");
+  const form = document.getElementById("phrase-flash-answer-form");
+  const input = document.getElementById("phrase-flash-input");
+  const feedback = document.getElementById("phrase-flash-feedback");
+  const afterRow = document.getElementById("phrase-flash-after");
+  const nextBtn = document.getElementById("phrase-flash-next");
+
+  if (
+    !drawBtn ||
+    !cardBody ||
+    !labelEl ||
+    !termEl ||
+    !form ||
+    !input ||
+    !feedback ||
+    !afterRow ||
+    !nextBtn
+  ) {
+    return;
+  }
+
+  function clearFeedbackClasses() {
+    feedback.classList.remove("is-correct", "is-typo", "is-wrong");
+    feedback.innerHTML = "";
+  }
+
+  function setAnswerState(isAnswered) {
+    answered = isAnswered;
+    input.disabled = isAnswered;
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = isAnswered;
+    afterRow.hidden = !isAnswered;
+  }
+
+  function drawCard() {
+    const phrases = getPhrases()
+      .map((p) => normalizePhraseEntry(p))
+      .filter((p) => p.korean && p.meaning);
+    if (!phrases.length) return;
+    clearFeedbackClasses();
+    let pool = phrases;
+    if (currentPhraseId && phrases.length > 1) {
+      const others = phrases.filter((p) => p.id !== currentPhraseId);
+      if (others.length) pool = others;
+    }
+    const picked = pool[Math.floor(Math.random() * pool.length)];
+    if (!picked) return;
+    currentPhraseId = picked.id;
+    setAnswerState(false);
+    cardBody.hidden = false;
+
+    if (flashMode === "ko-en") {
+      labelEl.textContent = "Translate to English";
+      termEl.textContent = picked.korean;
+      termEl.setAttribute("lang", "ko");
+      termEl.classList.remove("is-meaning-prompt");
+      input.placeholder = "Type the English meaning";
+      input.setAttribute("lang", "en");
+    } else {
+      labelEl.textContent = "Write in Korean";
+      termEl.textContent = picked.meaning;
+      termEl.setAttribute("lang", "en");
+      termEl.classList.add("is-meaning-prompt");
+      input.placeholder = "Type the Korean";
+      input.setAttribute("lang", "ko-KR");
+    }
+    input.value = "";
+    input.focus();
+  }
+
+  modeBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      modeBtns.forEach((b) => b.classList.remove("is-active"));
+      btn.classList.add("is-active");
+      const m = btn.getAttribute("data-phrase-flash-mode");
+      if (m === "ko-en" || m === "en-ko") flashMode = m;
+      currentPhraseId = null;
+      cardBody.hidden = true;
+      clearFeedbackClasses();
+      setAnswerState(false);
+      input.value = "";
+    });
+  });
+
+  drawBtn.addEventListener("click", () => drawCard());
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!currentPhraseId || answered) return;
+
+    const phrases = getPhrases().map((p) => normalizePhraseEntry(p));
+    const p = phrases.find((x) => x.id === currentPhraseId);
+    if (!p) {
+      clearFeedbackClasses();
+      feedback.classList.add("is-wrong");
+      feedback.textContent = "This phrase is no longer in your list. Draw a new card.";
+      setAnswerState(true);
+      return;
+    }
+
+    const raw = input.value;
+    const score =
+      flashMode === "ko-en"
+        ? scoreTypedAnswer(raw, meaningAlternatives(p.meaning), "en", 2)
+        : scoreTypedAnswer(raw, [p.korean], "ko", 2);
+
+    if (score.kind === "correct") {
+      feedback.classList.add("is-correct");
+      feedback.textContent = "Correct.";
+    } else if (score.kind === "typo") {
+      feedback.classList.add("is-correct");
+      feedback.textContent = `Correct. Did you mean: ${score.bestExpected}`;
+      window.alert(`Did you mean: ${score.bestExpected}`);
+    } else {
+      feedback.classList.add("is-wrong");
+      feedback.textContent = `Not quite. Expected: ${score.bestExpected}`;
+    }
+
+    recordSessionEvent();
     setAnswerState(true);
   });
 
@@ -1055,12 +1712,14 @@ function wireForms(showSection) {
       notes: String(fd.get("notes") || "").trim(),
       practiced: false,
       flashCorrectCount: 0,
+      flashIncorrectCount: 0,
       practiceWeight: 0,
     });
     if (!word.korean || !word.meaning) return;
     const words = getWords();
     words.unshift(word);
     saveWords(words);
+    recordSessionEvent();
     form.reset();
     renderWords(document.getElementById("filter-words").value);
     updateFlashPanel();
@@ -1094,8 +1753,10 @@ function wireForms(showSection) {
     const all = getPhrases();
     all.unshift(phrase);
     savePhrases(all);
+    recordSessionEvent();
     form.reset();
     renderPhrases();
+    updatePhraseFlashPanel();
   });
 
   const phraseCategoryFilter = document.getElementById("filter-phrase-category");
@@ -1696,9 +2357,11 @@ function wireDataTransfer() {
 
 function init() {
   migrateStorageWords();
+  renderSessionMetrics();
   const showSection = wireNavigation();
   wireForms(showSection);
   wireFlashcards();
+  wirePhraseFlashcards();
   wirePronunciationPractice();
   wireDataTransfer();
   wireInputLanguageHints();
@@ -1708,6 +2371,7 @@ function init() {
   if (dateInput && !dateInput.value) dateInput.value = today;
 
   updateFlashPanel();
+  updatePhraseFlashPanel();
   renderWords("");
   renderPhrases();
   renderGrammar();
